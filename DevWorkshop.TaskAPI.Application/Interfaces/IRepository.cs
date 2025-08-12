@@ -79,4 +79,5 @@ public interface IRepository<T> where T : class
     /// <param name="predicate">Condición de existencia</param>
     /// <returns>True si existe al menos una entidad</returns>
     Task<bool> AnyAsync(Expression<Func<T, bool>> predicate);
+    Task GetByEmailAsync(string email);
 }

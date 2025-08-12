@@ -33,12 +33,12 @@ public class UserDto
     /// <summary>
     /// ID del rol del usuario
     /// </summary>
-    public int? RoleId { get; set; }
+    public int RoleId { get; set; }
 
     /// <summary>
     /// Nombre del rol del usuario
     /// </summary>
-    public string? RoleName { get; set; }
+    public string RoleName { get; set; } = string.Empty;
 
     /// <summary>
     /// ID del equipo del usuario
@@ -53,5 +53,5 @@ public class UserDto
     /// <summary>
     /// Fecha de última actualización
     /// </summary>
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 }

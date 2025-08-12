@@ -33,7 +33,7 @@ public class User
     /// <summary>
     /// ID del rol del usuario
     /// </summary>
-    public int? RoleId { get; set; }
+    public int RoleId { get; set; }
 
     /// <summary>
     /// ID del equipo del usuario
@@ -43,25 +43,25 @@ public class User
     /// <summary>
     /// Fecha del último token emitido
     /// </summary>
-    public DateTime? LastTokenIssueAt { get; set; }
+    public DateTime LastTokenIssueAt { get; set; }
 
     /// <summary>
     /// Fecha de creación del usuario
     /// </summary>
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } 
 
     /// <summary>
     /// Fecha de última actualización
     /// </summary>
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 
     /// <summary>
     /// Rol del usuario (navegación)
     /// </summary>
-    public virtual Role? Role { get; set; }
+    public virtual Role Role { get; set; } = null!;
 
     /// <summary>
     /// Nombre completo del usuario (propiedad calculada)
     /// </summary>
-    public string FullName => $"{FirstName} {LastName}".Trim();
+    public string FullName => $"{FirstName} {LastName}";
 }
