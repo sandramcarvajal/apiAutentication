@@ -67,21 +67,29 @@ public class UserService : IUserService
     /// </summary>
     public async Task<UserDto?> GetUserByEmailAsync(string email)
     {
-        // TODO: ESTUDIANTE - Implementar lógica
-        throw new NotImplementedException("Método pendiente de implementación por el estudiante");
-    }
+        try
+        {
+            _logger.LogInformation("Buscando usuario por email: {Email}", email);
 
-    /// <summary>
-    /// TODO: ESTUDIANTE - Implementar la creación de un nuevo usuario
-    /// 
-    /// Pasos a seguir:
-    /// 1. Validar que el email no esté en uso
-    /// 2. Hashear la contraseña usando BCrypt
-    /// 3. Crear una nueva entidad User con los datos del DTO
-    /// 4. Establecer CreatedAt = DateTime.UtcNow e IsActive = true
-    /// 5. Guardar en la base de datos
-    /// 6. Mapear la entidad creada a UserDto y retornar
-    /// </summary>
+            var user = await _unitOfWork.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
+            {
+                _logger.LogInformation("No se encontró usuario con email: {Email}", email);
+                return null;
+            }
+
+            var userDto = _mapper.Map<UserDto>(user);
+
+            _logger.LogInformation("Usuario encontrado con ID: {UserId}", user.UserId);
+            return userDto;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al buscar usuario por email: {Email}", email);
+            throw;
+        }
+    }
     public async Task<UserDto> CreateUserAsync(CreateUserDto createUserDto)
     {
         _logger.LogInformation("Iniciando creación de usuario con email: {Email}", createUserDto.Email);
@@ -169,4 +177,93 @@ public class UserService : IUserService
         _logger.LogInformation("Verificando si el email existe: {Email}", email);
         throw new NotImplementedException("Método pendiente de implementación por el estudiante");
     }
+
+    /// <summary>
+    /// Obtiene la entidad User completa por email
+    /// </summary>
+    public async Task<User?> GetUserEntityByEmailAsync(string email)
+    {
+        try
+        {
+            _logger.LogInformation("Buscando entidad User por email: {Email}", email);
+
+            var user = await _unitOfWork.Users.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user != null)
+            {
+                _logger.LogInformation("Entidad User encontrada para email: {Email}", email);
+            }
+            else
+            {
+                _logger.LogInformation("No se encontró entidad User para email: {Email}", email);
+            }
+
+            return user;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al buscar entidad User por email: {Email}", email);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Obtiene la entidad User completa por ID
+    /// </summary>
+    public async Task<User?> GetUserEntityByIdAsync(int userId)
+    {
+        try
+        {
+            _logger.LogInformation("Buscando entidad User por ID: {UserId}", userId);
+
+            var user = await _unitOfWork.Users.GetByIdAsync(userId);
+
+            if (user != null)
+            {
+                _logger.LogInformation("Entidad User encontrada para ID: {UserId}", userId);
+            }
+            else
+            {
+                _logger.LogInformation("No se encontró entidad User para ID: {UserId}", userId);
+            }
+
+            return user;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al buscar entidad User por ID: {UserId}", userId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Actualiza una entidad User en la base de datos
+    /// </summary>
+    public async Task<bool> UpdateUserEntityAsync(User user)
+    {
+        try
+        {
+            _logger.LogInformation("Actualizando entidad User con ID: {UserId}", user.UserId);
+
+            _unitOfWork.Users.Update(user);
+            var result = await _unitOfWork.SaveChangesAsync();
+
+            if (result > 0)
+            {
+                _logger.LogInformation("Entidad User actualizada exitosamente: {UserId}", user.UserId);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("No se pudo actualizar la entidad User: {UserId}", user.UserId);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al actualizar entidad User: {UserId}", user.UserId);
+            throw;
+        }
+    }
+
 }
