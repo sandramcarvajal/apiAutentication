@@ -1,8 +1,10 @@
 using DevWorkshop.TaskAPI.Application.DTOs.Auth;
 using DevWorkshop.TaskAPI.Application.DTOs.Common;
 using DevWorkshop.TaskAPI.Application.DTOs.Users;
+using DevWorkshop.TaskAPI.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace DevWorkshop.TaskAPI.Api.Controllers;
 
@@ -14,11 +16,18 @@ namespace DevWorkshop.TaskAPI.Api.Controllers;
 [Produces("application/json")]
 public class AuthController : ControllerBase
 {
-    // TODO: ESTUDIANTE - Inyectar IAuthService, IUserService y ILogger
+    private readonly IAuthService _authService;
+    private readonly IUserService _userService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController()
+    public AuthController(
+    IAuthService authService,
+        IUserService userService,
+        ILogger<AuthController> logger)
     {
-        // TODO: ESTUDIANTE - Configurar las dependencias inyectadas
+        _authService = authService;
+        _userService = userService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -41,8 +50,43 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), 500)]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Login([FromBody] LoginDto loginDto)
     {
-        // TODO: ESTUDIANTE - Implementar lógica de login
-        throw new NotImplementedException("Endpoint pendiente de implementación por el estudiante");
+        try
+        {
+            _logger.LogInformation("Intento de autenticación para email: {Email}", loginDto.Email);
+
+            // Validar modelo de entrada
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+
+                return BadRequest(ApiResponse<AuthResponseDto>.ErrorResponse(
+                    "Datos de autenticación inválidos", errors));
+            }
+
+            // Procesar autenticación
+            var authResponse = await _authService.LoginAsync(loginDto);
+
+            if (authResponse == null)
+            {
+                _logger.LogWarning("Credenciales inválidas para email: {Email}", loginDto.Email);
+                return Unauthorized(ApiResponse<AuthResponseDto>.ErrorResponse(
+                    "Credenciales inválidas"));
+            }
+
+            _logger.LogInformation("Autenticación exitosa para email: {Email}", loginDto.Email);
+            return Ok(ApiResponse<AuthResponseDto>.SuccessResponse(
+                authResponse,
+                "Autenticación exitosa"));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error durante la autenticación para email: {Email}", loginDto.Email);
+            return StatusCode(500, ApiResponse<AuthResponseDto>.ErrorResponse(
+                "Error interno del servidor durante la autenticación"));
+        }
     }
 
     /// <summary>
@@ -65,8 +109,66 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), 500)]
     public async Task<ActionResult<ApiResponse<AuthResponseDto>>> Register([FromBody] CreateUserDto createUserDto)
     {
-        // TODO: ESTUDIANTE - Implementar lógica de registro
-        throw new NotImplementedException("Endpoint pendiente de implementación por el estudiante");
+        try
+        {
+            _logger.LogInformation("Intento de registro para email: {Email}", createUserDto.Email);
+
+            // Validar modelo de entrada
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage)
+                    .ToList();
+
+                return BadRequest(ApiResponse<AuthResponseDto>.ErrorResponse(
+                    "Datos de registro inválidos", errors));
+            }
+
+            // Verificar disponibilidad del email
+            var emailExists = await _userService.EmailExistsAsync(createUserDto.Email);
+            if (emailExists)
+            {
+                _logger.LogWarning("Intento de registro con email existente: {Email}", createUserDto.Email);
+                return Conflict(ApiResponse<AuthResponseDto>.ErrorResponse(
+                    "Ya existe un usuario registrado con este email"));
+            }
+
+            // Crear usuario
+            var createdUser = await _userService.CreateUserAsync(createUserDto);
+
+            // Generar token automáticamente
+            var token = _authService.GenerateJwtToken(createdUser.UserId, createdUser.Email, createdUser.RoleName);
+            var expirationTime = DateTime.UtcNow.AddMinutes(GetJwtExpirationMinutes());
+
+            var authResponse = new AuthResponseDto
+            {
+                Token = token,
+                ExpiresAt = expirationTime,
+                User = new UserInfo
+                {
+                    UserId = createdUser.UserId,
+                    FullName = createdUser.FullName,
+                    Email = createdUser.Email
+                }
+            };
+
+            _logger.LogInformation("Registro exitoso para email: {Email}", createUserDto.Email);
+            return CreatedAtAction(nameof(Register), ApiResponse<AuthResponseDto>.SuccessResponse(
+                authResponse,
+                "Usuario registrado exitosamente"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Error de validación durante el registro para email: {Email}", createUserDto.Email);
+            return Conflict(ApiResponse<AuthResponseDto>.ErrorResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error durante el registro para email: {Email}", createUserDto.Email);
+            return StatusCode(500, ApiResponse<AuthResponseDto>.ErrorResponse(
+                "Error interno del servidor durante el registro"));
+        }
     }
 
     /// <summary>
@@ -123,17 +225,26 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), 401)]
     public ActionResult<ApiResponse<object>> TestAuth()
     {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        var emailClaim = User.FindFirst(ClaimTypes.Email);
+        var roleClaim = User.FindFirst(ClaimTypes.Role);
+
         var userInfo = new
         {
-            UserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value,
-            Email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value,
-            TokenId = User.FindFirst("jti")?.Value,
-            IsAuthenticated = User.Identity?.IsAuthenticated ?? false
+            UserId = userIdClaim?.Value,
+            Email = emailClaim?.Value,
+            Role = roleClaim?.Value,
+            Message = "Token válido - Usuario autenticado correctamente"
         };
 
-        return Ok(ApiResponse<object>.SuccessResponse(
-            userInfo,
-            "Token válido - Usuario autenticado correctamente"
-        ));
+        return Ok(ApiResponse<object>.SuccessResponse(userInfo, "Autenticación verificada"));
+    }
+
+    /// <summary>
+    /// Método auxiliar para obtener los minutos de expiración del JWT
+    /// </summary>
+    private int GetJwtExpirationMinutes()
+    {
+        return 60; // Valor por defecto
     }
 }
